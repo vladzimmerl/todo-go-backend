@@ -136,7 +136,7 @@ func handleError(err error) {
 func CORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin == "https://todo-typescript-frontend.pages.dev" || origin == "https://todo.vladzimmerl0.com" {
+		if origin == "https://todo-typescript-frontend.pages.dev" || origin == "https://todo.vladzimmerl.com" {
 			w.Header().Add("Access-Control-Allow-Origin", origin)
 		}
 		w.Header().Add("Access-Control-Allow-Credentials", "true")
