@@ -14,7 +14,7 @@ type Task struct {
 	IsChecked bool   `json:"isChecked"`
 }
 
-type UserReceived struct {
+type ReceivedUser struct {
 	Name  string `json:"name"`
 	Tasks []Task `json:"tasks"`
 }
@@ -23,19 +23,24 @@ const JsonFile = "users.json"
 
 var simpleMutex sync.RWMutex
 
+// ========== Main ==========
+
 func main() {
 	port := os.Getenv("PORT")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", CORS(workingTest))
-	mux.HandleFunc("POST /tasks", CORS(writeUser))
-	mux.HandleFunc("GET /users/{user}", CORS(getUser))
+	mux.HandleFunc("/", Cors(IsWorkingTest))
+	mux.HandleFunc("POST /tasks", Cors(WriteUser))
+	mux.HandleFunc("GET /users/{user}", Cors(GetUser))
 
-	fmt.Println("Server listening to 8080")
-	handleError(http.ListenAndServe(":"+port, mux))
+	fmt.Println("Server listening to " + port)
+	HandleError(http.ListenAndServe(":"+port, mux))
 }
 
-func workingTest(w http.ResponseWriter, _ *http.Request) {
+// ========== Request Handlers ==========
+
+// IsWorkingTest displays api status message
+func IsWorkingTest(w http.ResponseWriter, _ *http.Request) {
 	_, err := fmt.Fprintf(w, "Server Working")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -43,13 +48,14 @@ func workingTest(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func getUser(w http.ResponseWriter, r *http.Request) {
+// GetUser handles GET rq
+func GetUser(w http.ResponseWriter, r *http.Request) {
 	// get user
 	user := r.PathValue("user")
 
 	// fetch data
 	simpleMutex.RLock()
-	tasks := getUserJson(user)
+	tasks := GetUserJson(user)
 	simpleMutex.RUnlock()
 
 	// write back request
@@ -67,21 +73,10 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getUserJson(user string) []Task {
-	// get data
-	users := getFileData()
-
-	// return data if it exists
-	if users[user] == nil {
-		return make([]Task, 0)
-	} else {
-		return users[user]
-	}
-}
-
-func writeUser(w http.ResponseWriter, r *http.Request) {
+// WriteUser handles POST rq
+func WriteUser(w http.ResponseWriter, r *http.Request) {
 	// get user data
-	var user UserReceived
+	var user ReceivedUser
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -90,50 +85,15 @@ func writeUser(w http.ResponseWriter, r *http.Request) {
 
 	// write to file
 	simpleMutex.Lock()
-	writeUserJson(user.Name, user.Tasks)
+	WriteUserJson(user.Name, user.Tasks)
 	simpleMutex.Unlock()
 
 	// response
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func writeUserJson(user string, tasks []Task) {
-	users := getFileData()
-
-	// write to file
-	users[user] = tasks
-	out, err := json.Marshal(users)
-	handleError(err)
-	handleError(os.WriteFile(JsonFile, out, 0666))
-}
-
-func getFileData() map[string][]Task {
-	// open file
-	file, err := os.OpenFile(JsonFile, os.O_RDWR|os.O_CREATE, 0666)
-	handleError(err)
-	defer (func() { handleError(file.Close()) })()
-
-	// get users
-	var users map[string][]Task
-	decoder := json.NewDecoder(file)
-	if decoder.More() {
-		handleError(decoder.Decode(&users))
-	} else {
-		fmt.Println("Warning: json file reads as empty")
-	}
-
-	// return
-	return users
-}
-
-func handleError(err error) {
-	if err != nil {
-		fmt.Println("ERROR:")
-		log.Fatal(err)
-	}
-}
-
-func CORS(next http.HandlerFunc) http.HandlerFunc {
+// Cors middleware to allow cross-origin access
+func Cors(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if origin == "https://todo-typescript-frontend.pages.dev" || origin == "https://todo.vladzimmerl.com" {
@@ -144,5 +104,59 @@ func CORS(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 
 		next(w, r)
+	}
+}
+
+// ========== JSON Access ==========
+
+// GetUserJson returns user from file
+func GetUserJson(user string) []Task {
+	// get data
+	users := FileData()
+
+	// return data if it exists
+	if users[user] == nil {
+		return make([]Task, 0)
+	} else {
+		return users[user]
+	}
+}
+
+// WriteUserJson writes data to disk
+func WriteUserJson(user string, tasks []Task) {
+	users := FileData()
+
+	// write to file
+	users[user] = tasks
+	out, err := json.Marshal(users)
+	HandleError(err)
+	HandleError(os.WriteFile(JsonFile, out, 0666))
+}
+
+// FileData returns stored data
+func FileData() map[string][]Task {
+	// open file
+	file, err := os.OpenFile(JsonFile, os.O_RDWR|os.O_CREATE, 0666)
+	HandleError(err)
+	defer (func() { HandleError(file.Close()) })()
+
+	// get users
+	var users map[string][]Task
+	decoder := json.NewDecoder(file)
+	if decoder.More() {
+		HandleError(decoder.Decode(&users))
+	} else {
+		fmt.Println("Warning: json file reads as empty")
+	}
+
+	// return
+	return users
+}
+
+// HandleError logs internal errors
+func HandleError(err error) {
+	if err != nil {
+		fmt.Println("ERROR:")
+		log.Fatal(err)
 	}
 }
