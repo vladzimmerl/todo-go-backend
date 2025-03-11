@@ -24,13 +24,15 @@ const JsonFile = "users.json"
 var simpleMutex sync.RWMutex
 
 func main() {
+	port := os.Getenv("PORT")
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", CORS(workingTest))
 	mux.HandleFunc("POST /tasks", CORS(writeUser))
 	mux.HandleFunc("GET /users/{user}", CORS(getUser))
 
 	fmt.Println("Server listening to 8080")
-	handleError(http.ListenAndServe(":8080", mux))
+	handleError(http.ListenAndServe(":"+port, mux))
 }
 
 func workingTest(w http.ResponseWriter, _ *http.Request) {
